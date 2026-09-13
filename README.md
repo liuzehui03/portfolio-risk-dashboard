@@ -1,6 +1,6 @@
 # Portfolio Risk Analytics Dashboard
 
-A Python-based risk analytics engine for a 17-position multi-asset portfolio, built to replicate the kind of quantitative risk reporting used in institutional asset management. Covers market risk (VaR/CVaR, volatility, drawdown), return attribution, fixed income duration/DV01 analysis, and historical stress testing.
+A Python-based risk analytics engine for a 16-position multi-asset portfolio, built to replicate the kind of quantitative risk reporting used in institutional asset management. Covers market risk (VaR/CVaR, volatility, drawdown), return attribution, fixed income duration/DV01 analysis, and historical stress testing.
 
 ---
 
@@ -8,11 +8,11 @@ A Python-based risk analytics engine for a 17-position multi-asset portfolio, bu
 
 | Asset Class | Tickers | Weight |
 |---|---|---|
-| Equities | AAPL, MSFT, MU, WMT, DAL, IAG, CAT, SPCX | 33.0% |
-| Broad / Sector ETFs | SPY, VT, XLV, XLF, EEM | 34.0% |
+| Equities | AAPL, MSFT, MU, WMT, DAL, IAG, SPCX | 30.0% |
+| Broad / Sector ETFs | SPY, VT, XLV, XLF, EEM | 38.0% |
 | Fixed Income ETFs | VGIT, VTIP, JPIE, MINT | 26.5% |
 
-> Weights sum to 93.5% reflecting the GIC bootcamp simulation allocation.
+> Weights sum to 94.5% reflecting the GIC bootcamp simulation allocation, transcribed from `data/GPP2026_Complete_Analysis_exCAT.xlsx` (sheet *Position PL Tracker*). CAT was never held; the workbook's *CAT Removal Log* sheet records that correction. SPCX listed recently and has only a few weeks of trading history; it's kept in the target weights above but excluded from the historical backtest (returns, VaR/CVaR, attribution, stress tests) so the other 15 positions retain their full multi-year window. SPCX is reported standalone in the console output instead.
 
 ---
 
@@ -31,7 +31,7 @@ A Python-based risk analytics engine for a 17-position multi-asset portfolio, bu
 **Return Attribution**
 - Per-position contribution to total portfolio return (in % and basis points)
 - Asset class sleeve attribution (equities / broad ETFs / fixed income)
-- Full 17×17 correlation heatmap across all positions
+- Full 15×15 correlation heatmap across all backtested positions (SPCX excluded for lack of history)
 
 **Fixed Income Risk**
 - Modified duration, DV01, and convexity for the bond ETF sleeve (VGIT, VTIP, JPIE, MINT)
@@ -46,20 +46,20 @@ A Python-based risk analytics engine for a 17-position multi-asset portfolio, bu
 
 ## Results (5-year backtest, Nov 2021 – Jul 2026)
 
-> ⚠️ The figures below were generated under the previous portfolio composition (VWRA.L/XLE instead of VT/SPCX). Re-run `python main.py --refresh` to regenerate this section for the current weights.
+Generated 13 Sep 2026 with `python main.py` on the cached prices (2021-11-02 → 2026-07-23) for the ex-CAT weights above. The backtest excludes SPCX, so the backtested book is 91.5% invested; the uninvested remainder is treated as earning zero.
 
 | Metric | Portfolio | SPY Benchmark |
 |---|---|---|
-| Annualised Return | 12.85% | 11.95% |
-| Annualised Volatility | 10.45% | 17.25% |
-| Sharpe Ratio | 0.83 | 0.51 |
-| Sortino Ratio | 0.82 | 0.51 |
-| VaR 95% (1-day) | 0.92% / $9,244 | 1.67% |
-| VaR 99% (1-day) | 1.73% / $17,346 | 2.94% |
-| CVaR 95% (1-day) | 1.46% / $14,629 | 2.49% |
-| Max Drawdown | -16.2% | -24.5% |
+| Annualised Return | 15.09% | 12.03% |
+| Annualised Volatility | 12.94% | 17.47% |
+| Sharpe Ratio | 0.842 | 0.509 |
+| Sortino Ratio | 0.851 | 0.500 |
+| VaR 95% (1-day) | 1.21% / $12,060 | 1.68% |
+| VaR 99% (1-day) | 2.11% / $21,071 | 2.95% |
+| CVaR 95% (1-day) | 1.77% / $17,656 | 2.50% |
+| Max Drawdown | -19.76% | -24.50% |
 
-**2022 Rate Shock** — Portfolio lost **-14.0%** (Jan–Oct 2022) under the previous composition; fixed income cost ~-420 bps in a rising-rate environment. *(Per-position contributors will shift now that XLE is no longer held — pending re-run.)*
+**2022 Rate Shock** — Portfolio lost **-18.1%** (Jan–Oct 2022). MU was the largest single drag at -424 bps; the fixed income sleeve cost ~-204 bps in a rising-rate environment, led by VGIT at -116 bps.
 
 **Fixed income +200 bps shock** — Estimated portfolio P&L: **-$18,385** on $1M, with VGIT the largest risk at -$10,393.
 
@@ -71,8 +71,14 @@ A Python-based risk analytics engine for a 17-position multi-asset portfolio, bu
 portfolio-risk-dashboard/
 ├── main.py                    # End-to-end pipeline; prints full risk report
 ├── requirements.txt
+├── pytest.ini
 ├── data/
-│   └── fetch_prices.py        # yfinance download + CSV cache
+│   ├── fetch_prices.py        # Ticker list, target weights, yfinance download + CSV cache
+│   ├── prices.csv             # Cached adjusted closes
+│   └── GPP2026_Complete_Analysis_exCAT.xlsx   # Source workbook for the weights
+├── tests/
+│   ├── test_portfolio_config.py   # Weights match the workbook; CAT absent
+│   └── test_attribution.py        # Stray price columns are ignored
 ├── risk/
 │   ├── metrics.py             # VaR, CVaR, Sharpe, Sortino, drawdown, rolling vol
 │   ├── fixed_income.py        # Duration, DV01, convexity, yield shock P&L
@@ -99,6 +105,10 @@ python3 main.py
 
 # 3. Force a fresh data download
 python3 main.py --refresh
+
+# 4. Run the tests (no network needed)
+pip install pytest
+pytest
 ```
 
 Prices are cached to `data/prices.csv` after the first download to avoid repeated API calls.

@@ -8,6 +8,8 @@ and computes the full correlation matrix across all holdings.
 import pandas as pd
 import numpy as np
 
+from data.fetch_prices import ASSET_CLASSES
+
 
 def return_attribution(prices: pd.DataFrame, weights: dict) -> pd.DataFrame:
     """
@@ -126,18 +128,12 @@ def asset_class_attribution(prices: pd.DataFrame, weights: dict) -> pd.DataFrame
     pd.DataFrame
         Aggregated contribution by asset class.
     """
-    asset_classes = {
-        "Equities":          ["AAPL", "MSFT", "MU", "WMT", "DAL", "IAG", "CAT", "SPCX"],
-        "Broad ETFs":        ["SPY", "VT", "XLV", "XLF", "EEM"],
-        "Fixed Income ETFs": ["VGIT", "VTIP", "JPIE", "MINT"],
-    }
-
     attr = return_attribution(prices, weights)
     # Drop totals row for aggregation
     attr = attr[attr["Ticker"] != "TOTAL"].copy()
 
     rows = []
-    for asset_class, tickers in asset_classes.items():
+    for asset_class, tickers in ASSET_CLASSES.items():
         subset = attr[attr["Ticker"].isin(tickers)]
         rows.append({
             "Asset Class": asset_class,

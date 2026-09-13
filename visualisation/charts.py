@@ -64,7 +64,7 @@ def plot_correlation_heatmap(
         ax=ax,
         annot_kws={"size": 8},
     )
-    ax.set_title("Return Correlation Matrix — 17-Position Portfolio", fontsize=14, pad=15)
+    ax.set_title(f"Return Correlation Matrix — {len(corr_matrix)}-Position Portfolio", fontsize=14, pad=15)
     ax.tick_params(axis="x", rotation=45)
     ax.tick_params(axis="y", rotation=0)
     _save(fig, "correlation_heatmap.png", show)

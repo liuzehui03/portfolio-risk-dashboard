@@ -25,7 +25,7 @@ from tabulate import tabulate
 warnings.filterwarnings("ignore")
 
 # ── Project imports ──────────────────────────────────────────────────────────
-from data.fetch_prices import load_prices, WEIGHTS
+from data.fetch_prices import load_prices, WEIGHTS, BACKTEST_WEIGHTS
 from risk.metrics import (
     portfolio_returns,
     rolling_volatility,
@@ -77,14 +77,16 @@ def _section(title: str):
 def main(refresh: bool = False) -> None:
     print("\n" + "═" * 72)
     print("  PORTFOLIO RISK ANALYTICS DASHBOARD")
-    print("  17-Position Multi-Asset Portfolio | GIC Bootcamp Simulation")
+    print(f"  {len(WEIGHTS)}-Position Multi-Asset Portfolio | GIC Bootcamp Simulation")
     print("═" * 72)
 
     # ── 1. Load prices ────────────────────────────────────────────────────────
     prices = load_prices(refresh=refresh)
 
     # ── 2. Compute returns ────────────────────────────────────────────────────
-    port_ret = portfolio_returns(prices, WEIGHTS)
+    # BACKTEST_WEIGHTS excludes SPCX (recently listed, ~weeks of history) so
+    # the rest of the portfolio keeps its full multi-year backtest window.
+    port_ret = portfolio_returns(prices, BACKTEST_WEIGHTS)
     bench_ret = prices["SPY"].pct_change().dropna()
 
     # Align to common dates
@@ -119,12 +121,24 @@ def main(refresh: bool = False) -> None:
 
     # ── 4. Return attribution ─────────────────────────────────────────────────
     _section("RETURN ATTRIBUTION BY POSITION")
-    attr_df = return_attribution(prices, WEIGHTS)
+    attr_df = return_attribution(prices, BACKTEST_WEIGHTS)
     print(tabulate(attr_df, headers="keys", tablefmt="plain", showindex=False))
 
     _section("RETURN ATTRIBUTION BY ASSET CLASS")
-    ac_df = asset_class_attribution(prices, WEIGHTS)
+    ac_df = asset_class_attribution(prices, BACKTEST_WEIGHTS)
     print(tabulate(ac_df, headers="keys", tablefmt="plain", showindex=False))
+
+    # ── SPCX footnote (recent listing, excluded from the backtest above) ─────
+    _section("SPCX — RECENT LISTING (EXCLUDED FROM BACKTEST ABOVE)")
+    spcx_px = prices["SPCX"].dropna()
+    if len(spcx_px) > 1:
+        spcx_ret = spcx_px.iloc[-1] / spcx_px.iloc[0] - 1
+        print(f"  Target weight: {WEIGHTS['SPCX']*100:.1f}% (not included in the metrics/attribution/stress sections above)")
+        print(f"  Trading history: {spcx_px.index[0].date()} → {spcx_px.index[-1].date()} ({len(spcx_px)} sessions)")
+        print(f"  Return since listing: {spcx_ret*100:.2f}%")
+        print("  Too little history for annualised vol/Sharpe/VaR — revisit once >1yr of data exists.")
+    else:
+        print("  No SPCX price history available.")
 
     # ── 5. Fixed income analysis ──────────────────────────────────────────────
     _section("FIXED INCOME — YIELD SHOCK ANALYSIS (Parallel +bps Shifts)")
@@ -138,7 +152,7 @@ def main(refresh: bool = False) -> None:
 
     # ── 6. Historical stress scenarios ────────────────────────────────────────
     _section("HISTORICAL STRESS SCENARIOS")
-    stress_df = run_all_scenarios(prices, WEIGHTS)
+    stress_df = run_all_scenarios(prices, BACKTEST_WEIGHTS)
     if not stress_df.empty and "Portfolio Return (%)" in stress_df.columns:
         print(tabulate(
             stress_df[["Portfolio Return (%)"]],
@@ -147,7 +161,7 @@ def main(refresh: bool = False) -> None:
         ))
         if "2022 Rate Shock (Jan–Oct 2022)" in stress_df.index:
             print("\n  2022 Rate Shock — Position-Level Breakdown:")
-            contrib_df = scenario_contribution_table(prices, WEIGHTS, "2022 Rate Shock (Jan–Oct 2022)")
+            contrib_df = scenario_contribution_table(prices, BACKTEST_WEIGHTS, "2022 Rate Shock (Jan–Oct 2022)")
             print(tabulate(contrib_df, headers="keys", tablefmt="plain", showindex=False))
     else:
         print("  No historical stress periods available in the current price history.")
@@ -160,7 +174,7 @@ def main(refresh: bool = False) -> None:
     _, bench_dd = max_drawdown(bench_ret)
     port_vol = rolling_volatility(port_ret, window=30)
     bench_vol = rolling_volatility(bench_ret, window=30)
-    corr = correlation_matrix(prices, WEIGHTS)
+    corr = correlation_matrix(prices, BACKTEST_WEIGHTS)
 
     plot_correlation_heatmap(corr)
     plot_rolling_volatility(port_vol, bench_vol, window=30)
