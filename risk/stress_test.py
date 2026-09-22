@@ -24,6 +24,8 @@ def scenario_returns(
     start: str,
     end: str,
     weights: dict,
+    cash_weight: float | None = None,
+    cash_rate: float = 0.0,
 ) -> dict:
     """
     Compute per-asset and portfolio-level return over a stress window.
@@ -33,9 +35,9 @@ def scenario_returns(
     prices : pd.DataFrame
         Full price history (all tickers, daily frequency).
     start : str
-        Start date of stress window (YYYY-MM-DD). Uses nearest available date.
+        Start date of stress window (YYYY-MM-DD). Requires that exact observation date.
     end : str
-        End date of stress window (YYYY-MM-DD). Uses nearest available date.
+        End date of stress window (YYYY-MM-DD). Requires that exact observation date.
     weights : dict
         {ticker: weight} portfolio weights.
 
@@ -44,25 +46,24 @@ def scenario_returns(
     dict
         {ticker: total_return_over_period} plus 'portfolio' key.
     """
-    window = prices.loc[start:end]
-    if len(window) < 2:
-        return {}
-
-    # Total return for each ticker over the window
-    asset_returns = (window.iloc[-1] / window.iloc[0]) - 1
-
-    port_ret = sum(
-        weights.get(t, 0) * asset_returns.get(t, 0)
-        for t in weights
-        if t in asset_returns.index
-    )
-
-    result = {t: float(asset_returns[t]) for t in weights if t in asset_returns.index}
-    result["portfolio"] = float(port_ret)
+    from data.fetch_prices import validate_prices
+    from risk.metrics import validate_weights, daily_rate
+    cash = validate_weights(weights, cash_weight)
+    clean = validate_prices(prices, list(weights))
+    start_date, end_date = pd.Timestamp(start), pd.Timestamp(end)
+    if start_date >= end_date or start_date not in clean.index or end_date not in clean.index:
+        raise ValueError(f"Full scenario endpoints unavailable: {start} to {end}")
+    window = clean.loc[start:end]
+    asset_returns = window.iloc[-1] / window.iloc[0] - 1
+    result = {t: float(asset_returns[t]) for t in weights}
+    result["CASH"] = (1 + daily_rate(cash_rate)) ** (len(window) - 1) - 1
+    result["portfolio"] = float(sum(weights[t] * result[t] for t in weights)
+                                + cash * result["CASH"])
     return result
 
 
-def run_all_scenarios(prices: pd.DataFrame, weights: dict) -> pd.DataFrame:
+def run_all_scenarios(prices: pd.DataFrame, weights: dict,
+                      cash_weight: float | None = None, cash_rate: float = 0.0) -> pd.DataFrame:
     """
     Run all defined stress scenarios and return a summary table.
 
@@ -86,11 +87,14 @@ def run_all_scenarios(prices: pd.DataFrame, weights: dict) -> pd.DataFrame:
     rows = []
 
     for scenario_name, (start, end) in STRESS_SCENARIOS.items():
-        ret = scenario_returns(prices, start, end, weights)
-        if not ret:
+        try:
+            ret = scenario_returns(prices, start, end, weights, cash_weight, cash_rate)
+        except ValueError as exc:
+            rows.append({"Scenario": scenario_name, "Portfolio Return (%)": np.nan,
+                         "Status": f"Unavailable: {exc}"})
             continue
 
-        row = {"Scenario": scenario_name}
+        row = {"Scenario": scenario_name, "Status": "Available"}
         for t in tickers:
             row[t] = round(ret.get(t, np.nan) * 100, 2)
         row["Portfolio Return (%)"] = round(ret.get("portfolio", np.nan) * 100, 2)
@@ -108,6 +112,8 @@ def scenario_contribution_table(
     prices: pd.DataFrame,
     weights: dict,
     scenario_name: str,
+    cash_weight: float | None = None,
+    cash_rate: float = 0.0,
 ) -> pd.DataFrame:
     """
     Break down a single scenario's portfolio return into per-position contributions.
@@ -130,7 +136,9 @@ def scenario_contribution_table(
         raise ValueError(f"Unknown scenario: {scenario_name}. Valid: {list(STRESS_SCENARIOS)}")
 
     start, end = STRESS_SCENARIOS[scenario_name]
-    ret = scenario_returns(prices, start, end, weights)
+    ret = scenario_returns(prices, start, end, weights, cash_weight, cash_rate)
+    from risk.metrics import validate_weights
+    weights = {**weights, "CASH": validate_weights(weights, cash_weight)}
 
     rows = []
     for ticker, weight in weights.items():

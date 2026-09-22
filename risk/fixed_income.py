@@ -11,18 +11,26 @@ fact sheets periodically.
 import numpy as np
 import pandas as pd
 
-# Published approximate effective duration (years) and convexity for each
-# fixed income ETF as of mid-2024. Update from fund fact sheets as needed.
-# Sources: Vanguard, JPMorgan, PIMCO fund pages.
+# Duration in years. Convexity unavailable in verified decimal-yield units:
+# None means omit the correction, NOT a measured zero convexity.
+# Sources reviewed 2026-09-23. Dated inputs are not live fund sensitivities.
 FI_PROFILES = {
-    "VGIT": {"duration": 5.2,  "convexity": 0.35, "ytm": 0.046},  # Vanguard Intermediate Treasury
-    "VTIP": {"duration": 2.6,  "convexity": 0.10, "ytm": 0.024},  # Vanguard Short-Term TIPS
-    "JPIE": {"duration": 3.8,  "convexity": 0.20, "ytm": 0.065},  # JPMorgan Income ETF
-    "MINT": {"duration": 0.35, "convexity": 0.01, "ytm": 0.053},  # PIMCO Enhanced Short Maturity
+    "VGIT": {"duration": 4.9, "convexity": None, "as_of": "2026-07-31",
+             "status": "Issuer average duration (years)",
+             "source": "https://advisors.vanguard.com/investments/products/vgit/vanguard-intermediate-term-treasury-etf.html"},
+    "VTIP": {"duration": 2.5, "convexity": None, "as_of": "2026-07-31",
+             "status": "Issuer average real-yield duration (years)",
+             "source": "https://advisors.vanguard.com/investments/products/vtip/vanguard-short-term-inflation-protected-securities-etf"},
+    "JPIE": {"duration": 2.55, "convexity": None, "as_of": "2026-08-31",
+             "status": "Issuer average duration (years)",
+             "source": "https://am.jpmorgan.com/content/dam/jpm-am-aem/americas/us/en/literature/fact-sheet/etfs/FS-JPIE.PDF"},
+    "MINT": {"duration": 0.35, "convexity": None, "as_of": "mid-2024 (legacy estimate)",
+             "status": "UNVERIFIED legacy assumption; current issuer document inaccessible",
+             "source": "https://www.pimco.com/us/en/investments/etf/pimco-enhanced-short-maturity-active-exchange-traded-fund/nyse"},
 }
 
 
-def price_change_from_shock(duration: float, convexity: float, dy: float) -> float:
+def price_change_from_shock(duration: float, convexity: float | None, dy: float) -> float:
     """
     Estimate percentage price change of a bond/ETF from a parallel yield shift.
 
@@ -34,7 +42,7 @@ def price_change_from_shock(duration: float, convexity: float, dy: float) -> flo
     duration : float
         Modified duration in years.
     convexity : float
-        Convexity (unitless, scaled so Δy is in decimal form).
+        Convexity in years squared for decimal yields, or None for duration-only.
     dy : float
         Yield change in decimal form (e.g. 0.01 for +100 bps).
 
@@ -43,7 +51,11 @@ def price_change_from_shock(duration: float, convexity: float, dy: float) -> flo
     float
         Estimated fractional price change (negative = price falls when yields rise).
     """
-    return -duration * dy + 0.5 * convexity * dy**2
+    if not np.isfinite([duration, dy]).all() or duration < 0:
+        raise ValueError("Duration and yield shock must be finite; duration nonnegative")
+    if convexity is not None and not np.isfinite(convexity):
+        raise ValueError("Convexity must be finite when supplied")
+    return -duration * dy + (0.5 * convexity * dy**2 if convexity is not None else 0.0)
 
 
 def dv01(duration: float, price: float = 100.0) -> float:
@@ -90,6 +102,10 @@ def yield_shock_pnl(
         Table with columns: ticker, weight, allocation_$, duration,
         DV01_per_$1M, and one column per shock scenario showing P&L in $.
     """
+    from risk.metrics import validate_weights
+    validate_weights(weights)
+    if not np.isfinite(portfolio_value) or portfolio_value <= 0:
+        raise ValueError("Portfolio value must be positive and finite")
     if shocks_bps is None:
         shocks_bps = [50, 100, 200]
 
@@ -103,17 +119,17 @@ def yield_shock_pnl(
 
         row = {
             "Ticker": ticker,
-            "Weight (%)": round(weight * 100, 2),
-            "Allocation ($)": round(allocation, 0),
+            "Weight (%)": weight * 100,
+            "Allocation ($)": allocation,
             "Duration (yrs)": dur,
-            "DV01 ($)": round(dv01_val, 2),
+            "DV01 ($)": dv01_val,
         }
 
         for bps in shocks_bps:
             dy = bps / 10_000  # convert bps to decimal
             pct_chg = price_change_from_shock(dur, conv, dy)
             pnl = pct_chg * allocation
-            row[f"+{bps}bps P&L ($)"] = round(pnl, 0)
+            row[f"{bps:+g}bps P&L ($)"] = pnl
 
         rows.append(row)
 
@@ -121,9 +137,12 @@ def yield_shock_pnl(
 
     # Append a totals row for each shock column
     totals = {"Ticker": "TOTAL", "Weight (%)": "", "Allocation ($)": "", "Duration (yrs)": "", "DV01 ($)": ""}
+    totals["DV01 ($)"] = df["DV01 ($)"].sum()
+    totals["Allocation ($)"] = df["Allocation ($)"].sum()
+    totals["Weight (%)"] = df["Weight (%)"].sum()
     for bps in shocks_bps:
-        col = f"+{bps}bps P&L ($)"
-        totals[col] = round(df[col].sum(), 0)
+        col = f"{bps:+g}bps P&L ($)"
+        totals[col] = df[col].sum()
     df = pd.concat([df, pd.DataFrame([totals])], ignore_index=True)
 
     return df

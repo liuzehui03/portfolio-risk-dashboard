@@ -25,7 +25,7 @@ def test_asset_class_attribution_ignores_extra_columns(prices):
     with_cat = asset_class_attribution(prices, WEIGHTS)
     without_cat = asset_class_attribution(prices.drop(columns="CAT"), WEIGHTS)
 
-    assert with_cat["Weight (%)"].sum() == pytest.approx(94.5)
+    assert with_cat["Weight (%)"].sum() == pytest.approx(100.0)
     pd.testing.assert_frame_equal(with_cat, without_cat)
 
 

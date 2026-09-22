@@ -216,7 +216,7 @@ def plot_return_attribution(attribution_df: pd.DataFrame, show: bool = False) ->
     bars = ax.barh(df["Ticker"], df["Contribution (bps)"], color=colors, edgecolor="white", height=0.6)
 
     ax.axvline(0, color="black", linewidth=0.8)
-    ax.set_title("Return Attribution by Position (basis points)", fontsize=13)
+    ax.set_title("Wealth-Linked Return Attribution (basis points)", fontsize=13)
     ax.set_xlabel("Contribution (bps)")
     ax.grid(axis="x", alpha=0.3)
 
@@ -259,7 +259,7 @@ def plot_yield_shock(fi_shock_df: pd.DataFrame, show: bool = False) -> None:
 
     ax.set_xticks(x)
     ax.set_xticklabels(df["Ticker"], fontsize=10)
-    ax.set_title("Fixed Income P&L Impact — Parallel Yield Curve Shocks ($1M Portfolio)", fontsize=12)
+    ax.set_title("Bond Sleeve — Duration-Only Yield Sensitivity ($1M Portfolio)", fontsize=12)
     ax.set_ylabel("Estimated P&L ($)")
     ax.legend(frameon=False, fontsize=9)
     ax.axhline(0, color="black", linewidth=0.7)

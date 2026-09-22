@@ -1,15 +1,15 @@
-"""
-Fetch and cache 2 years of daily adjusted closing prices for all portfolio tickers.
-"""
+"""Fetch and validate daily adjusted prices; default window is five years."""
 
 import time
+import warnings
+import numpy as np
 import yfinance as yf
 import pandas as pd
 from pathlib import Path
 
 # Weights are transcribed from data/GPP2026_Complete_Analysis_exCAT.xlsx,
 # sheet "Position PL Tracker". CAT was never held (see "CAT Removal Log").
-EQUITY_TICKERS = ["AAPL", "MSFT", "MU", "WMT", "DAL", "IAG", "SPCX"]
+EQUITY_TICKERS = ["AAPL", "MSFT", "MU", "WMT", "DAL", "IAG"]
 BROAD_ETF_TICKERS = ["SPY", "VT", "XLV", "XLF", "EEM"]
 FIXED_INCOME_TICKERS = ["VGIT", "VTIP", "JPIE", "MINT"]
 
@@ -21,7 +21,13 @@ ASSET_CLASSES = {
 
 TICKERS = EQUITY_TICKERS + BROAD_ETF_TICKERS + FIXED_INCOME_TICKERS
 
-WEIGHTS = {
+# Benchmark proxies, downloaded alongside the positions but never held:
+#   URTH  iShares MSCI World ETF        -> 60% MSCI World leg
+#   BNDW  Vanguard Total World Bond ETF -> 40% Bloomberg Global Agg leg
+BENCHMARK_TICKERS = ["URTH", "BNDW"]
+DOWNLOAD_TICKERS = TICKERS + BENCHMARK_TICKERS
+
+ORIGINAL_WEIGHTS = {
     'SPY': 0.14, 'VT': 0.10, 'VGIT': 0.10,
     'MU': 0.10, 'XLV': 0.06, 'JPIE': 0.06,
     'MSFT': 0.06, 'VTIP': 0.06, 'AAPL': 0.05,
@@ -30,56 +36,90 @@ WEIGHTS = {
     'DAL': 0.015, 'IAG': 0.005
 }
 
-# SPCX listed recently and has only weeks of trading history. Including it in
-# a straight dropna() would truncate the ENTIRE price table (all 16 tickers)
-# down to just its short window. It's kept in WEIGHTS for documentation but
-# excluded here so the rest of the portfolio retains full multi-year history.
-SHORT_HISTORY_TICKERS = ["SPCX"]
-BACKTEST_WEIGHTS = {t: w for t, w in WEIGHTS.items() if t not in SHORT_HISTORY_TICKERS}
+# Revised simulation allocation approved 2026-09-23, not live market-value weights.
+WEIGHTS_DATE = "2026-09-23"
+CASH_WEIGHT = 0.01
+CASH_RATE = 0.0  # annual nominal rate, accrued at rate / 252 per observation
+WEIGHTS = {t: w * (1 - CASH_WEIGHT) / sum(
+    v for k, v in ORIGINAL_WEIGHTS.items() if k != "SPCX"
+) for t, w in ORIGINAL_WEIGHTS.items() if t != "SPCX"}
+
+
+def validate_prices(prices: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
+    """Select required assets; allow only leading pre-inception missing prices."""
+    if not isinstance(prices.index, pd.DatetimeIndex) or prices.index.hasnans:
+        raise ValueError("Prices require valid datetime dates")
+    if prices.index.has_duplicates or not prices.index.is_monotonic_increasing:
+        raise ValueError("Price dates must be unique and sorted")
+    if prices.columns.has_duplicates:
+        raise ValueError("Price columns must be unique")
+    missing = set(tickers) - set(prices.columns)
+    if missing:
+        raise ValueError(f"Missing price columns: {sorted(missing)}")
+    frame = prices.loc[:, tickers].astype(float)
+    first_dates = []
+    for ticker in tickers:
+        series = frame[ticker]
+        first = series.first_valid_index()
+        if first is None:
+            raise ValueError(f"No prices for {ticker}")
+        active = series.loc[first:]
+        if not np.isfinite(active).all() or (active <= 0).any():
+            raise ValueError(f"Invalid, internal or trailing missing prices for {ticker}")
+        first_dates.append(first)
+    frame = frame.loc[max(first_dates):]
+    if len(frame) < 2:
+        raise ValueError("At least two common price observations are required")
+    return frame
+
+
+def warn_if_stale(prices: pd.DataFrame, today=None) -> None:
+    today = pd.Timestamp(today if today is not None else pd.Timestamp.today()).date()
+    last = prices.index[-1].date()
+    age = int(np.busday_count(last, today)) if today >= last else 0
+    if age > 3:
+        warnings.warn(f"Stale price cache: latest date {last}, {age} weekdays old. "
+                      "Run with --refresh for updated daily prices.", UserWarning, stacklevel=2)
+
 
 DATA_DIR = Path(__file__).parent
 
 
-def fetch_prices(period: str = "2y") -> pd.DataFrame:
+def fetch_prices(period: str = "5y") -> pd.DataFrame:
     """
-    Download adjusted closing prices for all tickers via yfinance.
+    Download adjusted closing prices for all positions and benchmark proxies
+    via yfinance.
 
     Parameters
     ----------
     period : str
-        yfinance period string (default '2y' for two years).
+        yfinance period string (default '5y').
 
     Returns
     -------
     pd.DataFrame
         Daily adjusted close prices, columns = tickers, index = date.
-        Rows are forward-filled, then dropped only where a long-history
-        ticker is still missing — SHORT_HISTORY_TICKERS (e.g. SPCX, which
-        listed recently) are left with leading NaNs rather than truncating
-        everyone else's history down to their short window.
+        Leading pre-inception gaps determine the common start date.
+        Internal/trailing missing prices are rejected, never forward-filled.
     """
-    required_cols = [t for t in TICKERS if t not in SHORT_HISTORY_TICKERS]
+    required_cols = DOWNLOAD_TICKERS
     max_attempts = 3
     missing = required_cols
 
     for attempt in range(1, max_attempts + 1):
         raw = yf.download(
-            TICKERS,
+            DOWNLOAD_TICKERS,
             period=period,
             auto_adjust=True,
             progress=False,
             threads=True,
         )
 
-        # yfinance returns MultiIndex columns when multiple tickers requested
-        if isinstance(raw.columns, pd.MultiIndex):
+        if isinstance(raw.columns, pd.MultiIndex) and "Close" in raw.columns.get_level_values(0):
             prices = raw["Close"]
         else:
-            prices = raw[["Close"]]
-            prices.columns = TICKERS
-
-        prices = prices.ffill()
-        missing = [c for c in required_cols if prices[c].isna().all()]
+            prices = pd.DataFrame(index=raw.index)
+        missing = [c for c in required_cols if c not in prices or prices[c].isna().all()]
         if not missing:
             break
 
@@ -95,8 +135,7 @@ def fetch_prices(period: str = "2y") -> pd.DataFrame:
             "— wait a moment and retry. If it persists, check the ticker symbols."
         )
 
-    prices = prices.dropna(subset=required_cols)
-    return prices
+    return validate_prices(prices, required_cols)
 
 
 def load_prices(refresh: bool = False, period: str = "5y") -> pd.DataFrame:
@@ -129,6 +168,8 @@ def load_prices(refresh: bool = False, period: str = "5y") -> pd.DataFrame:
         prices.to_csv(cache_path)
         print(f"Saved prices to {cache_path}")
 
+    prices = validate_prices(prices, DOWNLOAD_TICKERS)
+    warn_if_stale(prices)
     return prices
 
 

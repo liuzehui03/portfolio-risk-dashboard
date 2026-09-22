@@ -9,11 +9,15 @@ import pytest
 
 from data.fetch_prices import (
     ASSET_CLASSES,
-    BACKTEST_WEIGHTS,
+    ORIGINAL_WEIGHTS,
+    CASH_WEIGHT,
+    BENCHMARK_TICKERS,
+    DOWNLOAD_TICKERS,
     FIXED_INCOME_TICKERS,
     TICKERS,
     WEIGHTS,
 )
+from risk.metrics import BLEND_WEIGHTS
 
 # Transcribed from the workbook, 16 positions, sum 0.945.
 EXPECTED_WEIGHTS = {
@@ -30,18 +34,29 @@ def test_cat_is_not_held():
 
 def test_tickers_and_weights_agree():
     assert set(TICKERS) == set(WEIGHTS)
-    assert len(TICKERS) == 16
+    assert len(TICKERS) == 15
 
 
 def test_weights_match_excat_workbook():
-    assert WEIGHTS == EXPECTED_WEIGHTS
-    assert sum(WEIGHTS.values()) == pytest.approx(0.945)
+    assert ORIGINAL_WEIGHTS == EXPECTED_WEIGHTS
+    assert sum(ORIGINAL_WEIGHTS.values()) == pytest.approx(0.945)
 
 
-def test_backtest_weights_exclude_only_spcx():
-    assert set(BACKTEST_WEIGHTS) == set(WEIGHTS) - {"SPCX"}
-    for ticker, weight in BACKTEST_WEIGHTS.items():
-        assert weight == WEIGHTS[ticker]
+def test_active_weights_are_proportional_with_explicit_cash():
+    assert set(WEIGHTS) == set(ORIGINAL_WEIGHTS) - {"SPCX"}
+    assert "SPCX" not in DOWNLOAD_TICKERS
+    assert CASH_WEIGHT == 0.01
+    assert sum(WEIGHTS.values()) == pytest.approx(0.99)
+    assert sum(WEIGHTS.values()) + CASH_WEIGHT == pytest.approx(1)
+    for ticker, weight in WEIGHTS.items():
+        assert weight == pytest.approx(EXPECTED_WEIGHTS[ticker] * 0.99 / 0.915)
+
+
+def test_benchmark_tickers_are_downloaded_but_not_held():
+    assert BENCHMARK_TICKERS == ["URTH", "BNDW"]
+    assert set(BLEND_WEIGHTS) <= set(BENCHMARK_TICKERS)
+    assert not set(BENCHMARK_TICKERS) & set(WEIGHTS)
+    assert DOWNLOAD_TICKERS == TICKERS + BENCHMARK_TICKERS
 
 
 def test_asset_classes_partition_tickers():

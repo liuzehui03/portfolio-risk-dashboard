@@ -1,138 +1,131 @@
 # Portfolio Risk Analytics Dashboard
 
-A Python-based risk analytics engine for a 16-position multi-asset portfolio, built to replicate the kind of quantitative risk reporting used in institutional asset management. Covers market risk (VaR/CVaR, volatility, drawdown), return attribution, fixed income duration/DV01 analysis, and historical stress testing.
+A Python command-line risk dashboard for a **15-security multi-asset simulation portfolio with 1% cash**. It measures historical market risk at specified weights, compares two benchmarks, reconciles return attribution, and estimates bond-sleeve yield sensitivity.
 
----
+It answers: **“How would this chosen allocation have behaved under historical market moves?”** It does not infer current holdings from purchase prices, provide live intraday risk, optimize allocations, or report actual account performance.
 
 ## Portfolio
 
-| Asset Class | Tickers | Weight |
-|---|---|---|
-| Equities | AAPL, MSFT, MU, WMT, DAL, IAG, SPCX | 30.0% |
-| Broad / Sector ETFs | SPY, VT, XLV, XLF, EEM | 38.0% |
-| Fixed Income ETFs | VGIT, VTIP, JPIE, MINT | 26.5% |
+Revised simulation allocation dated **23 September 2026**. The original weights were transcribed from `data/GPP2026_Complete_Analysis_exCAT.xlsx`, sheet *Position PL Tracker*. CAT was not held. SPCX is removed from the revised portfolio.
 
-> Weights sum to 94.5% reflecting the GIC bootcamp simulation allocation, transcribed from `data/GPP2026_Complete_Analysis_exCAT.xlsx` (sheet *Position PL Tracker*). CAT was never held; the workbook's *CAT Removal Log* sheet records that correction. SPCX listed recently and has only a few weeks of trading history; it's kept in the target weights above but excluded from the historical backtest (returns, VaR/CVaR, attribution, stress tests) so the other 15 positions retain their full multi-year window. SPCX is reported standalone in the console output instead.
+The other original weights total 91.5%. Each is multiplied by `0.99 / 0.915`, preserving their relative proportions. The remaining 1% is explicit cash. These are chosen target weights, not verified current market-value weights. The workbook remains an unchanged historical reference.
 
----
+| Holding | Revised weight |
+|---|---:|
+| SPY | 15.1475% |
+| VT | 10.8197% |
+| VGIT | 10.8197% |
+| MU | 10.8197% |
+| XLV | 6.4918% |
+| JPIE | 6.4918% |
+| MSFT | 6.4918% |
+| VTIP | 6.4918% |
+| AAPL | 5.4098% |
+| XLF | 5.4098% |
+| MINT | 4.8689% |
+| WMT | 4.3279% |
+| EEM | 3.2459% |
+| DAL | 1.6230% |
+| IAG | 0.5410% |
+| Cash | 1.0000% |
 
-## Features
-
-**Market Risk**
-- Historical VaR at 95% and 99% confidence, and CVaR (Expected Shortfall)
-- Dollar-equivalent risk figures on a $1M notional portfolio
-- Daily return distribution chart with VaR/CVaR thresholds marked
-
-**Performance Analytics**
-- Annualised return (CAGR), Sharpe ratio, and Sortino ratio vs SPY benchmark
-- 30-day rolling annualised volatility chart (portfolio vs SPY)
-- Maximum drawdown calculation and time-series chart
-
-**Return Attribution**
-- Per-position contribution to total portfolio return (in % and basis points)
-- Asset class sleeve attribution (equities / broad ETFs / fixed income)
-- Full 15×15 correlation heatmap across all backtested positions (SPCX excluded for lack of history)
-
-**Fixed Income Risk**
-- Modified duration, DV01, and convexity for the bond ETF sleeve (VGIT, VTIP, JPIE, MINT)
-- Parallel yield curve shock scenarios: +50, +100, +200 bps
-- Estimated P&L impact per position and in aggregate
-
-**Historical Stress Testing**
-- 2022 rate shock (Jan–Oct 2022): portfolio return and per-position breakdown
-- Additional scenarios defined for COVID crash, 2020 recovery, Q4 2018
-
----
-
-## Results (5-year backtest, Nov 2021 – Jul 2026)
-
-Generated 13 Sep 2026 with `python main.py` on the cached prices (2021-11-02 → 2026-07-23) for the ex-CAT weights above. The backtest excludes SPCX, so the backtested book is 91.5% invested; the uninvested remainder is treated as earning zero.
-
-| Metric | Portfolio | SPY Benchmark |
-|---|---|---|
-| Annualised Return | 15.09% | 12.03% |
-| Annualised Volatility | 12.94% | 17.47% |
-| Sharpe Ratio | 0.842 | 0.509 |
-| Sortino Ratio | 0.851 | 0.500 |
-| VaR 95% (1-day) | 1.21% / $12,060 | 1.68% |
-| VaR 99% (1-day) | 2.11% / $21,071 | 2.95% |
-| CVaR 95% (1-day) | 1.77% / $17,656 | 2.50% |
-| Max Drawdown | -19.76% | -24.50% |
-
-**2022 Rate Shock** — Portfolio lost **-18.1%** (Jan–Oct 2022). MU was the largest single drag at -424 bps; the fixed income sleeve cost ~-204 bps in a rising-rate environment, led by VGIT at -116 bps.
-
-**Fixed income +200 bps shock** — Estimated portfolio P&L: **-$18,385** on $1M, with VGIT the largest risk at -$10,393.
-
----
-
-## Project Structure
-
-```
-portfolio-risk-dashboard/
-├── main.py                    # End-to-end pipeline; prints full risk report
-├── requirements.txt
-├── pytest.ini
-├── data/
-│   ├── fetch_prices.py        # Ticker list, target weights, yfinance download + CSV cache
-│   ├── prices.csv             # Cached adjusted closes
-│   └── GPP2026_Complete_Analysis_exCAT.xlsx   # Source workbook for the weights
-├── tests/
-│   ├── test_portfolio_config.py   # Weights match the workbook; CAT absent
-│   └── test_attribution.py        # Stray price columns are ignored
-├── risk/
-│   ├── metrics.py             # VaR, CVaR, Sharpe, Sortino, drawdown, rolling vol
-│   ├── fixed_income.py        # Duration, DV01, convexity, yield shock P&L
-│   └── stress_test.py         # Historical scenario replay
-├── portfolio/
-│   └── attribution.py         # Return contribution, correlation matrix
-├── visualisation/
-│   └── charts.py              # Heatmap, rolling vol, drawdown, VaR, attribution charts
-└── charts/                    # Generated PNG outputs (auto-created on first run)
-```
-
----
+Full precision is retained internally; displayed weights are rounded. Equities total 29.21%, broad/sector ETFs 41.11%, fixed-income ETFs 28.67%, and cash 1%.
 
 ## Quickstart
 
+Python 3.10 or newer:
+
 ```bash
-# 1. Clone and install dependencies
-git clone https://github.com/your-username/portfolio-risk-dashboard.git
-cd portfolio-risk-dashboard
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# 2. Run the full pipeline (downloads 5 years of price data on first run)
-python3 main.py
-
-# 3. Force a fresh data download
-python3 main.py --refresh
-
-# 4. Run the tests (no network needed)
 pip install pytest
-pytest
+
+python main.py                  # existing cached daily prices
+python main.py --refresh        # download updated five-year daily history
+python main.py --cash-rate 0.04 # optional 4% nominal annual cash assumption
+python -m pytest -q             # offline numerical and integration tests
 ```
 
-Prices are cached to `data/prices.csv` after the first download to avoid repeated API calls.
+`--cash-rate` defaults to **0%**, independent of the **4% risk-free assumption** used for Sharpe/Sortino. Both annual nominal rates are divided by 252 per daily observation. Dollar risk uses a disclosed **$1 million USD simulation notional**.
 
----
+Price dates and the number of observations appear in the report. Cached data older than three weekdays produces a warning but remains usable for reproducible historical analysis. Weekday age excludes weekends, not exchange holidays. No automatic network refresh occurs when a cache exists.
 
-## Methodology Notes
+## Features and methodology
 
-**VaR / CVaR**: Historical simulation (non-parametric). No distributional assumptions — losses are ranked directly from the empirical return series. CVaR is the mean of all days that breach the VaR threshold.
+### Historical risk and performance
 
-**Sharpe / Sortino**: Annualised using 252 trading days. Risk-free rate assumed at 4% (approximate T-bill yield). Sortino uses downside deviation only, making it more appropriate for asymmetric return profiles.
+Yahoo Finance adjusted closes (`auto_adjust=True`) supply split/dividend-adjusted daily return proxies. Each historical daily portfolio scenario is `sum(weight × asset_return) + cash_weight × daily_cash_rate`.
 
-**Fixed income duration/convexity**: Point-in-time estimates sourced from fund fact sheets (Vanguard, JPMorgan, PIMCO). These are not derived from underlying bond cashflows. Yield shock P&L uses the standard duration-convexity approximation: `ΔP/P ≈ -D·Δy + ½·C·(Δy)²`.
+- **VaR:** negative empirical return percentile at the chosen confidence, using NumPy's linear percentile interpolation.
+- **CVaR / expected shortfall:** average of exactly the worst 5% or 1% probability mass, including a fractional boundary observation. Tied outcomes are handled consistently. VaR and CVaR are signed losses; an all-gain sample can produce negative loss figures.
+- **Volatility:** sample daily standard deviation multiplied by `sqrt(252)`; rolling window defaults to 30 observations.
+- **Sharpe:** mean excess daily return divided by sample daily standard deviation, annualized by `sqrt(252)`.
+- **Sortino:** mean excess daily return divided by the root mean squared negative excess return **over all observations**, with positive excess returns contributing zero. See [Sortino methodology](https://www.cmegroup.com/education/files/rr-sortino-a-sharper-ratio.pdf).
+- **CAGR:** compounded return annualized using `observations / 252`.
+- **Drawdown:** loss relative to the running wealth peak, including initial wealth of 1; displayed as a negative percentage.
 
-**Stress scenarios**: Historical period returns are applied to current weights. This assumes the portfolio composition is fixed — it does not account for rebalancing or position changes that may have occurred during the stress period.
+Compounding constant-weight daily returns assumes daily rebalancing without trading costs or taxes. It is hypothetical historical performance, not an achieved investment return or forecast. Rescaling the existing mix to 99% increases exposure; it is not an optimization or a claim of improved future Sharpe.
 
----
+### Benchmarks
 
-## Dependencies
+SPY is the pure-equity reference. The second benchmark is a daily-rebalanced **60% URTH / 40% BNDW** ETF blend, used as a proxy for the MSCI World / Bloomberg Global Aggregate mandate mix. ETF fees, tracking differences, and bond currency hedging can cause differences from the intended indices. All portfolio and benchmark metrics use the same dates.
 
-| Package | Purpose |
-|---|---|
-| `yfinance` | Historical price data via Yahoo Finance |
-| `pandas` / `numpy` | Data manipulation and numerical computation |
-| `matplotlib` / `seaborn` | Charting and visualisation |
-| `scipy` | Statistical utilities |
-| `tabulate` | Formatted terminal output |
+### Reconciled attribution
+
+Daily asset contributions are multiplied by prior-day portfolio wealth and then summed. Contributions, including cash, reconcile to total compounded portfolio return before rounding. Asset-class attribution aggregates these same contributions.
+
+The separate asset total-return column is each asset's buy-and-hold return. Multiplying it by a fixed target weight does **not** reproduce a daily-rebalanced portfolio's contribution. Correlation covers the 15 securities; constant cash has no defined correlation and is omitted from that heatmap.
+
+### Historical stress scenarios
+
+The 2022 rate shock, COVID crash/recovery, and Q4 2018 scenarios apply each asset's complete period return to the revised starting weights. These are **buy-and-hold scenario shocks**, distinct from the daily-rebalanced performance series. Cash compounds at its configured rate over the scenario's observed return intervals.
+
+Both exact scenario endpoints must exist for every holding. Missing holdings, incomplete windows, or invalid prices produce an explicit unavailable status. Earlier crises cannot be reconstructed for this entire portfolio merely by downloading more data: JPIE's shorter history limits the common window.
+
+### Bond-sleeve sensitivity
+
+The active calculation is **duration-only**: `price_change ≈ −duration × yield_change`, with yield changes in decimals; `DV01 = duration × allocation × 0.0001`. Scenarios are +50, +100, and +200 basis points. Totals are calculated before display rounding.
+
+| ETF | Duration (years) | Input date | Source/status |
+|---|---:|---|---|
+| VGIT | 4.9 | 2026-07-31 | [Vanguard average duration](https://advisors.vanguard.com/investments/products/vgit/vanguard-intermediate-term-treasury-etf.html) |
+| VTIP | 2.5 | 2026-07-31 | [Vanguard real-yield duration](https://advisors.vanguard.com/investments/products/vtip/vanguard-short-term-inflation-protected-securities-etf) |
+| JPIE | 2.55 | 2026-08-31 | [JPMorgan fact sheet, portfolio analysis](https://am.jpmorgan.com/content/dam/jpm-am-aem/americas/us/en/literature/fact-sheet/etfs/FS-JPIE.PDF) |
+| MINT | 0.35 | mid-2024 | **Unverified legacy assumption**; current [issuer document](https://www.pimco.com/us/en/investments/etf/pimco-enhanced-short-maturity-active-exchange-traded-fund/nyse) was inaccessible during review |
+
+Sources reviewed 23 September 2026; these inputs do not refresh with prices. Unsupported legacy convexities have been removed. The reusable formula supports a supplied convexity in years squared, but none of the active profiles has a verified value.
+
+VTIP's sensitivity is to real yields. Adding the sleeve's sensitivities is a stylized simultaneous yield-shift exercise, not a single nominal Treasury-curve shock. Credit spreads, inflation accrual, nonlinear effects, and equity reactions are not modeled. MINT's assumption also limits precision. Results are not a complete portfolio stress loss.
+
+## Reproduced results
+
+Generated with the revised code on **23 September 2026**, using the existing cache **2021-11-02 through 2026-09-11**, **1,218 daily returns**. Cash earns 0%; risk-free assumption is 4%. These replace the previous SPCX-excluded, 91.5%-invested results. The cache is stale relative to the generation date.
+
+| Metric | Portfolio | 60/40 blend | SPY |
+|---|---:|---:|---:|
+| Annualized return | 16.73% | 6.83% | 12.47% |
+| Annualized volatility | 13.99% | 10.58% | 17.32% |
+| Sharpe | 0.890 | 0.299 | 0.534 |
+| Sortino | 1.323 | 0.427 | 0.768 |
+| Daily VaR 95% | 1.30% | 1.00% | 1.66% |
+| Daily VaR 99% | 2.25% | 1.84% | 2.94% |
+| Daily CVaR 95% | 1.91% | 1.49% | 2.49% |
+| Daily CVaR 99% | 3.02% | 2.30% | 3.94% |
+| Maximum drawdown | -21.27% | -21.32% | -24.50% |
+
+On the $1 million notional, daily 95% VaR is **$12,956** and 95% expected shortfall is **$19,089**. Reconciled cumulative attribution is **111.23%**. The complete 2022 scenario returns **−19.57%**. The bond-sleeve +200bp duration-only estimate is **−$17,501**, subject to the assumptions above.
+
+## Validation and structure
+
+- `data/fetch_prices.py`: original reference allocation, revised weights/cash, downloads, cache validation and age warning.
+- `risk/metrics.py`: fixed-weight returns and risk measures.
+- `risk/stress_test.py`: complete-window historical shocks and unavailable statuses.
+- `risk/fixed_income.py`: dated duration inputs and bond-sleeve sensitivity.
+- `portfolio/attribution.py`: reconciled contributions and correlations.
+- `main.py`: console report; `visualisation/charts.py`: six PNG charts in `charts/`.
+- `tests/`: configuration, benchmark alignment, independent numerical examples, data failure cases, and integration checks.
+
+Required prices must be positive and finite, with unique sorted dates. Leading pre-inception gaps determine the common start; internal/trailing missing values are rejected, not forward-filled. Extra cached columns, including old SPCX/CAT data, are ignored. Previously forward-filled cached observations cannot be identified retroactively; refresh to download a new history. The validator does not independently certify vendor prices or detect every missing exchange session.
+
+Undefined ratios display `n/a`; invalid samples raise errors. The test suite runs offline. This project does not implement allocation optimization or the separate research described in the unrelated planning documents.
