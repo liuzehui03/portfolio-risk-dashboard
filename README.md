@@ -6,11 +6,9 @@ It answers: **“How would this chosen allocation have behaved under historical 
 
 ## Portfolio
 
-Revised simulation allocation dated **23 September 2026**. The original weights were transcribed from `data/GPP2026_Complete_Analysis_exCAT.xlsx`, sheet *Position PL Tracker*. CAT was not held. SPCX is removed from the revised portfolio.
+The simulation uses a **99% allocation to 15 securities and 1% cash**, totaling **100%**. The target allocation below is applied to historical daily returns to measure portfolio risk.
 
-The other original weights total 91.5%. Each is multiplied by `0.99 / 0.915`, preserving their relative proportions. The remaining 1% is explicit cash. These are chosen target weights, not verified current market-value weights. The workbook remains an unchanged historical reference.
-
-| Holding | Revised weight |
+| Holding | Target weight |
 |---|---:|
 | SPY | 15.1475% |
 | VT | 10.8197% |
@@ -28,6 +26,7 @@ The other original weights total 91.5%. Each is multiplied by `0.99 / 0.915`, pr
 | DAL | 1.6230% |
 | IAG | 0.5410% |
 | Cash | 1.0000% |
+| **Total** | **100%** |
 
 Full precision is retained internally; displayed weights are rounded. Equities total 29.21%, broad/sector ETFs 41.11%, fixed-income ETFs 28.67%, and cash 1%.
 
@@ -65,7 +64,7 @@ Yahoo Finance adjusted closes (`auto_adjust=True`) supply split/dividend-adjuste
 - **CAGR:** compounded return annualized using `observations / 252`.
 - **Drawdown:** loss relative to the running wealth peak, including initial wealth of 1; displayed as a negative percentage.
 
-Compounding constant-weight daily returns assumes daily rebalancing without trading costs or taxes. It is hypothetical historical performance, not an achieved investment return or forecast. Rescaling the existing mix to 99% increases exposure; it is not an optimization or a claim of improved future Sharpe.
+Compounding constant-weight daily returns assumes daily rebalancing without trading costs or taxes. It is hypothetical historical performance, not an achieved investment return or forecast. The allocation is specified for the simulation; it is not optimized to maximize historical Sharpe.
 
 ### Benchmarks
 
@@ -100,7 +99,7 @@ VTIP's sensitivity is to real yields. Adding the sleeve's sensitivities is a sty
 
 ## Reproduced results
 
-Generated with the revised code on **23 September 2026**, using the existing cache **2021-11-02 through 2026-09-11**, **1,218 daily returns**. Cash earns 0%; risk-free assumption is 4%. These replace the previous SPCX-excluded, 91.5%-invested results. The cache is stale relative to the generation date.
+Generated on **23 September 2026**, using cached prices **2021-11-02 through 2026-09-11**, **1,218 daily returns**, and the target allocation above. Cash earns 0%; risk-free assumption is 4%. The cache is stale relative to the generation date.
 
 | Metric | Portfolio | 60/40 blend | SPY |
 |---|---:|---:|---:|
