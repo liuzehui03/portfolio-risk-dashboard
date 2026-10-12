@@ -125,6 +125,6 @@ On the $1 million notional, daily 95% VaR is **$12,956** and 95% expected shortf
 - `main.py`: console report; `visualisation/charts.py`: six PNG charts in `charts/`.
 - `tests/`: configuration, benchmark alignment, independent numerical examples, data failure cases, and integration checks.
 
-Required prices must be positive and finite, with unique sorted dates. Leading pre-inception gaps determine the common start; internal/trailing missing values are rejected, not forward-filled. Extra cached columns, including old SPCX/CAT data, are ignored. Previously forward-filled cached observations cannot be identified retroactively; refresh to download a new history. The validator does not independently certify vendor prices or detect every missing exchange session.
+Required prices must be positive and finite, with unique sorted dates. Leading pre-inception gaps determine the common start; internal/trailing missing values are rejected, not forward-filled. Extra cached columns, including old SPCX data, are ignored. Previously forward-filled cached observations cannot be identified retroactively; refresh to download a new history. The validator does not independently certify vendor prices or detect every missing exchange session.
 
 Undefined ratios display `n/a`; invalid samples raise errors. The test suite runs offline. This project does not implement allocation optimization or the separate research described in the unrelated planning documents.

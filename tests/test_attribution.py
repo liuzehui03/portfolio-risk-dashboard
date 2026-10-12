@@ -1,5 +1,5 @@
 """
-Behavioural checks: a stale CAT column in the price cache must not affect any output.
+Behavioural checks: a stale extra column in the price cache must not affect any output.
 """
 
 import numpy as np
@@ -13,20 +13,20 @@ from risk.metrics import portfolio_returns
 
 @pytest.fixture
 def prices() -> pd.DataFrame:
-    """Five days of synthetic prices for every held ticker plus a stray CAT column."""
+    """Five days of synthetic prices for every held ticker plus a stray extra column."""
     dates = pd.bdate_range("2026-06-01", periods=5)
     rng = np.random.default_rng(0)
     frame = {t: 100 * np.cumprod(1 + rng.normal(0.001, 0.01, 5)) for t in WEIGHTS}
-    frame["CAT"] = 100 * np.cumprod(1 + np.full(5, 0.05))  # strong drift, must be ignored
+    frame["OLD"] = 100 * np.cumprod(1 + np.full(5, 0.05))  # strong drift, must be ignored
     return pd.DataFrame(frame, index=dates)
 
 
 def test_asset_class_attribution_ignores_extra_columns(prices):
-    with_cat = asset_class_attribution(prices, WEIGHTS)
-    without_cat = asset_class_attribution(prices.drop(columns="CAT"), WEIGHTS)
+    with_extra = asset_class_attribution(prices, WEIGHTS)
+    without_extra = asset_class_attribution(prices.drop(columns="OLD"), WEIGHTS)
 
-    assert with_cat["Weight (%)"].sum() == pytest.approx(100.0)
-    pd.testing.assert_frame_equal(with_cat, without_cat)
+    assert with_extra["Weight (%)"].sum() == pytest.approx(100.0)
+    pd.testing.assert_frame_equal(with_extra, without_extra)
 
 
 def test_portfolio_returns_uses_only_weighted_tickers(prices):
@@ -36,4 +36,4 @@ def test_portfolio_returns_uses_only_weighted_tickers(prices):
     result = portfolio_returns(prices, WEIGHTS)
 
     np.testing.assert_allclose(result.values, expected.values)
-    assert "CAT" not in tickers
+    assert "OLD" not in tickers

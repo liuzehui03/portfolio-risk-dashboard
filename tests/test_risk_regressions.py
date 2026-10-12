@@ -144,7 +144,7 @@ def test_cache_validation_and_extra_columns(tmp_path, monkeypatch):
     p = pd.DataFrame({t: [100., 101., 102.] for t in data.DOWNLOAD_TICKERS},
                      index=pd.bdate_range(pd.Timestamp.today().normalize() - pd.offsets.BDay(3), periods=3))
     p['SPCX'] = np.nan
-    p['CAT'] = -1
+    p['OLD'] = -1
     p.to_csv(tmp_path / 'prices.csv')
     assert list(data.load_prices().columns) == data.DOWNLOAD_TICKERS
     p.iloc[1, 0] = np.nan

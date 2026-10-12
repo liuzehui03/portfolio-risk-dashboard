@@ -7,8 +7,7 @@ import yfinance as yf
 import pandas as pd
 from pathlib import Path
 
-# Weights are transcribed from data/GPP2026_Complete_Analysis_exCAT.xlsx,
-# sheet "Position PL Tracker". CAT was never held (see "CAT Removal Log").
+# Portfolio positions and weights.
 EQUITY_TICKERS = ["AAPL", "MSFT", "MU", "WMT", "DAL", "IAG"]
 BROAD_ETF_TICKERS = ["SPY", "VT", "XLV", "XLF", "EEM"]
 FIXED_INCOME_TICKERS = ["VGIT", "VTIP", "JPIE", "MINT"]
